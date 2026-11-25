@@ -1,0 +1,10 @@
+{
+  "name": "light_yolo11n",
+  "base_weights": "yolo11n.pt",
+  "imgsz": 416,
+  "epochs": 25,
+  "batch": 16,
+  "train_wall_seconds_this_invocation": 1625.0,
+  "val_map50": 0.9806366794896704,
+  "val_map50_95": 0.7419851327813946
+}
