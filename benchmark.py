@@ -40,6 +40,8 @@ def variants():
     for f in sorted(W.glob("*.onnx")):
         stem = f.stem
         base = stem.rsplit("_", 1)[0] if stem.endswith(("_fp16", "_int8")) else stem
+        if base == "baseline_yolov8s" and stem != base:
+            continue  # baseline is compared in PyTorch FP32 and ONNX FP32 only
         prec = {"fp16": "FP16", "int8": "INT8"}.get(stem.rsplit("_", 1)[-1], "FP32")
         pretty = {"baseline_yolov8s": "YOLOv8s", "light_yolov8n": "YOLOv8n",
                   "light_yolo11n": "YOLO11n"}.get(base, base)
