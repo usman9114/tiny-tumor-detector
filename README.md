@@ -93,6 +93,8 @@ python make_assets.py && python make_demo_gif.py   # charts, cover, gif (gif nee
 python app.py                                # Gradio demo on http://localhost:7860
 ```
 
+The GIF script needs Node and the `playwright` npm package (set `NODE_PATH` if it is installed globally).
+
 Weights are not committed (`*.pt`, `*.onnx`, `runs/` and `datasets/` are gitignored); the commands above reproduce them. Training is not bit-for-bit deterministic across machines, so expect small differences from the table.
 
 Docker (the image does not contain weights; mount the `weights/` folder produced above):

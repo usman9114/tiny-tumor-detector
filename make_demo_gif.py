@@ -16,6 +16,15 @@ ROOT = Path(__file__).resolve().parent
 PORT = 7861
 
 
+def node_env():
+    """Respect an existing NODE_PATH; otherwise fall back to a known location if present."""
+    env = dict(os.environ)
+    fallback = "/opt/node-tools/node_modules"
+    if not env.get("NODE_PATH") and os.path.isdir(fallback):
+        env["NODE_PATH"] = fallback
+    return env
+
+
 def main():
     proc = subprocess.Popen([sys.executable, str(ROOT / "app.py")], env=dict(os.environ, PORT=str(PORT)),
                             cwd=ROOT, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -29,7 +38,7 @@ def main():
                 time.sleep(1)
         imgs = [str(p) for p in sorted((ROOT / "assets" / "examples").glob("*.jpg"))[:3]]
         subprocess.run(["node", str(ROOT / "tools" / "capture_frames.js"), str(PORT), str(out), *imgs],
-                       check=True, env=dict(os.environ, NODE_PATH="/opt/node-tools/node_modules"))
+                       check=True, env=node_env())
         files = sorted(out.glob("*.png"))
         frames = [Image.open(f).convert("RGB") for f in files]
         durs = [int(f.stem.split("_")[1]) for f in files]
