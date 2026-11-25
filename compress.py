@@ -5,6 +5,7 @@ Usage: python compress.py --weights weights/light_yolov8n.pt --name light_yolov8
 Outputs: weights/<name>.onnx, <name>_fp16.onnx, <name>_int8.onnx
 """
 import argparse
+import re
 from pathlib import Path
 
 import cv2
@@ -74,9 +75,19 @@ def main():
     files = [files[i] for i in rng.choice(len(files), a.calib, replace=False)]
     name_in = ort.InferenceSession(str(fp32), providers=["CPUExecutionProvider"]).get_inputs()[0].name
     int8 = wdir / f"{a.name}_int8.onnx"
+    # Keep the box/class decoding in float: quantizing the final 1x1 convs and the
+    # DFL/decode ops collapses mAP to 0 (box coordinates are in pixels, 0-416).
+    # Only the 3x3 head convs and the whole backbone/neck are quantized.
+    nodes = onnx.load(str(pre)).graph.node
+    last = max(int(m.group(1)) for n in nodes if (m := re.match(r"^/model\.(\d+)/", n.name)))
+    HEAD = f"/model.{last}/"  # the Detect head is the last module
+    keep = [n.name for n in nodes
+            if (n.name.startswith(HEAD) and not re.search(r"cv[23]\.\d/cv[23]\.\d\.[01]/conv/Conv$", n.name))]
+    print("excluded from INT8:", len(keep), "head nodes")
     quantize_static(str(pre), str(int8), Calib(files, a.imgsz, name_in),
                     quant_format=QuantFormat.QDQ, per_channel=True,
-                    activation_type=QuantType.QUInt8, weight_type=QuantType.QInt8)
+                    activation_type=QuantType.QUInt8, weight_type=QuantType.QInt8,
+                    nodes_to_exclude=keep)
     pre.unlink()
     print("int8 ->", int8, round(int8.stat().st_size / 1e6, 2), "MB")
 
