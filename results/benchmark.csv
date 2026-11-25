@@ -1,0 +1,11 @@
+model,params_M,size_MB,GFLOPs,mAP50,mAP50_95,tumour_recall,cpu_latency_ms_median,cpu_latency_ms_p95,gpu_latency_ms,peak_ram_MB
+YOLOv8s baseline (PyTorch FP32),11.13,44.55,12.01,0.9876,0.7303,0.9223,47.37,64.87,not measured (no GPU available),852.0
+YOLOv8n (PyTorch FP32),3.13,12.58,3.65,0.982,0.7052,0.9242,20.03,26.62,not measured (no GPU available),852.0
+YOLO11n (PyTorch FP32),2.6,10.46,2.7,0.9741,0.7003,0.9068,24.39,32.11,not measured (no GPU available),852.0
+YOLOv8s (ONNX FP32),11.13,44.65,12.01,0.9869,0.728,0.9022,29.4,41.51,not measured (no GPU available),852.0
+YOLO11n (ONNX FP32),2.6,10.57,2.7,0.9798,0.6949,0.9237,12.06,26.28,not measured (no GPU available),852.0
+YOLO11n (ONNX FP16),2.6,5.34,2.7,0.9797,0.692,0.9237,10.15,21.89,not measured (no GPU available),852.0
+YOLO11n (ONNX INT8),2.6,3.33,2.7,0.9808,0.6982,0.9322,10.66,19.51,not measured (no GPU available),852.0
+YOLOv8n (ONNX FP32),3.13,12.68,3.65,0.98,0.7038,0.9218,13.22,27.42,not measured (no GPU available),852.0
+YOLOv8n (ONNX FP16),3.13,6.38,3.65,0.9801,0.7062,0.9217,11.26,23.37,not measured (no GPU available),852.0
+YOLOv8n (ONNX INT8),3.13,3.57,3.65,0.9733,0.6896,0.9153,10.15,16.51,not measured (no GPU available),852.0

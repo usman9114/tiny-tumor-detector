@@ -14,7 +14,6 @@ import argparse
 import csv
 import json
 import os
-import resource
 import subprocess
 import sys
 import tempfile
@@ -75,7 +74,9 @@ def worker_ram(path, imgsz):
     run = load_runner(Path(path), imgsz)
     for _ in range(20):
         run()
-    print(json.dumps({"ram_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024}))
+    # VmHWM = peak resident set of this process (ru_maxrss is inherited across exec)
+    hwm = next(int(l.split()[1]) for l in open("/proc/self/status") if l.startswith("VmHWM"))
+    print(json.dumps({"ram_mb": hwm / 1024}))
 
 
 def peak_ram(path, imgsz):
