@@ -1,0 +1,5 @@
+seed=0  images=1115  groups=661  classes: 0=tumor
+train images= 891  tumor boxes= 940
+val   images= 114  tumor boxes= 122
+test  images= 110  tumor boxes= 118
+wrote /home/user/tiny-tumor-detector/datasets/brain-tumor/data.yaml

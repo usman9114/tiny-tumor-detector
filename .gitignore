@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+runs/
+datasets/
+*.pt
+*.onnx
+logs/
+.env
+weights/
+data/brain-tumor-raw/
+*.zip

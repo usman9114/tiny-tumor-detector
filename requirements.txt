@@ -1,0 +1,17 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+gradio==6.32.0
+matplotlib==3.11.2
+numpy==2.5.4
+onnx==1.23.2
+onnxruntime==1.32.0
+onnxslim==0.1.99
+opencv-python==5.1.0.95
+pandas==3.1.1
+pillow==13.0.0
+psutil==7.2.2
+pycocotools==2.0.11
+PyYAML==6.0.4
+torch==2.15.0+cpu
+torchvision==0.29.2+cpu
+ultralytics==8.4.218
+ultralytics-thop==2.2.5
