@@ -1,0 +1,10 @@
+{
+  "name": "baseline_yolov8s",
+  "base_weights": "yolov8s.pt",
+  "imgsz": 416,
+  "epochs": 25,
+  "batch": 16,
+  "train_wall_seconds_this_invocation": 3432.1,
+  "val_map50": 0.986316700812469,
+  "val_map50_95": 0.750049257884905
+}
