@@ -67,12 +67,16 @@ def main():
 
     # tradeoff chart
     fig, ax = plt.subplots(figsize=(10, 6.2), dpi=150)
-    for m, r in df.iterrows():
+    offs = [(10, 10), (10, 10), (10, -26), (-20, 22), (-135, 30), (14, 30), (-120, -34), (-20, -46),
+            (30, -12), (14, -22)]
+    for k, (m, r) in enumerate(df.iterrows()):
         col = ACC1 if m == a.base_row else (ACC2 if m == a.light_row else "#58a6ff")
         ax.scatter(r.cpu_latency_ms_median, r.mAP50, s=r.size_MB * 40 + 40, color=col, alpha=.75,
                    edgecolor=FG, linewidth=.6)
-        ax.annotate(f"{m}\n{r.size_MB} MB", (r.cpu_latency_ms_median, r.mAP50), fontsize=8.5,
-                    xytext=(8, 8), textcoords="offset points", color=FG)
+        ax.annotate(f"{m.replace('PyTorch ', 'PT ').replace('ONNX ', '')} {r.size_MB} MB",
+                    (r.cpu_latency_ms_median, r.mAP50), fontsize=8,
+                    xytext=offs[k % len(offs)], textcoords="offset points", color=FG,
+                    arrowprops=dict(arrowstyle="-", color=MUTED, lw=.5))
     ax.set_xlabel("CPU latency, ms per image (batch 1, median, lower is better)")
     ax.set_ylabel("mAP@50 on held-out test split")
     ax.set_title("Accuracy vs CPU latency (bubble area = model size)", color=FG, loc="left")
