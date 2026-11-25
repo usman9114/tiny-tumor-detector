@@ -1,0 +1,10 @@
+{
+  "name": "light_yolov8n",
+  "base_weights": "yolov8n.pt",
+  "imgsz": 416,
+  "epochs": 25,
+  "batch": 16,
+  "train_wall_seconds_this_invocation": 1840.5,
+  "val_map50": 0.9842833705839764,
+  "val_map50_95": 0.7445765664278801
+}
