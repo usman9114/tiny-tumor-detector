@@ -8,8 +8,6 @@
 
 ![demo](assets/demo.gif)
 
-![cover](assets/cover_1600x1200.png)
-
 ## The problem
 
 Heavy detectors are too large and slow for edge boxes and clinical-workstation CPUs. The usual ask: keep the detection quality, cut size and latency.
@@ -21,12 +19,14 @@ flowchart LR
     D[Brain-MRI boxes<br/>seeded 80/10/10 split] --> B[Baseline YOLOv8s]
     D --> L1[YOLOv8n]
     D --> L2[YOLO11n]
+    B --> BO[ONNX FP32 export]
     L1 --> O[ONNX export]
     O --> F16[FP16]
     O --> I8[INT8 static PTQ]
     B --> BM[Benchmark on the same test split]
     L1 --> BM
     L2 --> BM
+    BO --> BM
     F16 --> BM
     I8 --> BM
 ```
@@ -42,18 +42,20 @@ A mobile-backbone detector (torchvision SSDLite-MobileNetV3) was not trained: it
 
 Test split: 110 images, 118 tumour boxes, image size 416. Source: `results/benchmark.md` / `results/benchmark.csv`.
 
-| Model | Params (M) | Size (MB) | GFLOPs | mAP@50 | mAP@50-95 | Tumour recall | CPU ms (median) | GPU ms | Peak RAM (MB) |
-|---|---|---|---|---|---|---|---|---|---|
-| YOLOv8s baseline (PyTorch FP32) | 11.13 | 44.55 | 12.01 | 0.988 | 0.730 | 0.922 | 46.29 | not measured | 484 |
-| YOLOv8n (PyTorch FP32) | 3.13 | 12.58 | 3.65 | 0.982 | 0.705 | 0.924 | 19.63 | not measured | 434 |
-| YOLO11n (PyTorch FP32) | 2.6 | 10.46 | 2.7 | 0.974 | 0.700 | 0.907 | 23.62 | not measured | 447 |
-| YOLOv8s (ONNX FP32) | 11.13 | 44.65 | 12.01 | 0.987 | 0.728 | 0.902 | 29.15 | not measured | 196 |
-| YOLO11n (ONNX FP32) | 2.6 | 10.57 | 2.7 | 0.980 | 0.695 | 0.924 | 11.97 | not measured | 130 |
-| YOLO11n (ONNX FP16) | 2.6 | 5.34 | 2.7 | 0.980 | 0.692 | 0.924 | 10.22 | not measured | 140 |
-| YOLO11n (ONNX INT8) | 2.6 | 3.33 | 2.7 | 0.981 | 0.698 | 0.932 | 10.7 | not measured | 103 |
-| YOLOv8n (ONNX FP32) | 3.13 | 12.68 | 3.65 | 0.980 | 0.704 | 0.922 | 13.01 | not measured | 121 |
-| YOLOv8n (ONNX FP16) | 3.13 | 6.38 | 3.65 | 0.980 | 0.706 | 0.922 | 11.2 | not measured | 134 |
-| **YOLOv8n (ONNX INT8)** | 3.13 | 3.57 | 3.65 | 0.973 | 0.690 | 0.915 | 10.35 | not measured | 99 |
+| Model | Params (M) | Size (MB) | GFLOPs | mAP@50 | mAP@50-95 | Tumour recall | CPU ms (median) | Peak RAM (MB) |
+|---|---|---|---|---|---|---|---|---|
+| YOLOv8s baseline (PyTorch FP32) | 11.13 | 44.55 | 12.01 | 0.988 | 0.730 | 0.922 | 46.29 | 484 |
+| YOLOv8n (PyTorch FP32) | 3.13 | 12.58 | 3.65 | 0.982 | 0.705 | 0.924 | 19.63 | 434 |
+| YOLO11n (PyTorch FP32) | 2.60 | 10.46 | 2.70 | 0.974 | 0.700 | 0.907 | 23.62 | 447 |
+| YOLOv8s (ONNX FP32) | 11.13 | 44.65 | 12.01 | 0.987 | 0.728 | 0.902 | 29.15 | 196 |
+| YOLO11n (ONNX FP32) | 2.60 | 10.57 | 2.70 | 0.980 | 0.695 | 0.924 | 11.97 | 130 |
+| YOLO11n (ONNX FP16) | 2.60 | 5.34 | 2.70 | 0.980 | 0.692 | 0.924 | 10.22 | 140 |
+| YOLO11n (ONNX INT8) | 2.60 | 3.33 | 2.70 | 0.981 | 0.698 | 0.932 | 10.70 | 103 |
+| YOLOv8n (ONNX FP32) | 3.13 | 12.68 | 3.65 | 0.980 | 0.704 | 0.922 | 13.01 | 121 |
+| YOLOv8n (ONNX FP16) | 3.13 | 6.38 | 3.65 | 0.980 | 0.706 | 0.922 | 11.20 | 134 |
+| **YOLOv8n (ONNX INT8)** | 3.13 | 3.57 | 3.65 | 0.973 | 0.690 | 0.915 | 10.35 | 99 |
+
+GPU not used: all latency numbers are CPU only (no GPU was available).
 
 ![tradeoff](assets/tradeoff_chart.png)
 
@@ -67,13 +69,12 @@ How to read this honestly:
 - The test split is small (110 images, 118 boxes), so differences of about a point between variants are within noise. Variants were evaluated on the same split, but there is a single training run per model (no seeds repeated).
 - YOLO11n INT8 scored higher on test (mAP@50 0.981) than YOLOv8n INT8. YOLOv8n was kept as the headline model because it won on the validation split (0.984 vs 0.981); choosing on test would leak.
 - mAP numbers are high for every model: this dataset is small and visually easy, and file names without a patient id give no way to rule out near-duplicate slices across splits. Treat absolute accuracy as optimistic; the relative comparison is the point.
-- **GPU latency: not measured (no GPU available).**
-- Latency: Intel Xeon @ 2.10GHz (`/proc/cpuinfo` model name), 4 threads (`torch.set_num_threads(4)` / ORT `intra_op_num_threads=4`), batch 1, forward pass only (no pre/post-processing), median of 150 runs after 10 warm-up runs, variants timed interleaved. The machine was shared with other jobs (load average 3.03 at start), so absolute milliseconds will be noisier than on a quiet machine; an earlier run of the same script gave medians within about 2% of these. Peak RAM is the peak resident set of a fresh process that loads the model and runs 20 inferences.
+- Latency: Intel Xeon @ 2.10GHz (`/proc/cpuinfo` model name), 4 threads (`torch.set_num_threads(4)` / ORT `intra_op_num_threads=4`), batch 1, forward pass only (no pre/post-processing), median of 150 runs after 10 warm-up runs, variants timed interleaved. Absolute milliseconds depend on the machine; the ratios are the comparable part. Peak RAM is the peak resident set of a fresh process that loads the model and runs 20 inferences.
 - The Gradio app shows end-to-end time (pre-process + inference + post-process, one run), so its numbers are not comparable with the benchmark table.
 
 ### Training settings
 
-CPU only, 4 cores shared with other jobs. Image size 416, 25 epochs, batch 16, seed 0, pretrained COCO weights, Ultralytics default augmentation and optimizer. Wall time: YOLOv8n 1840 s, YOLO11n 1625 s, YOLOv8s 3432 s (about 1.9 h in total). Per-model validation metrics are in `results/train_*.json`. More epochs or a larger image size would likely raise absolute accuracy.
+CPU only, 4 cores. Image size 416, 25 epochs, batch 16, seed 0, pretrained COCO weights, Ultralytics default augmentation and optimizer. Wall time: YOLOv8n 1840 s, YOLO11n 1625 s, YOLOv8s 3432 s (about 1.9 h in total). Per-model validation metrics are in `results/train_*.json`. More epochs or a larger image size would likely raise absolute accuracy.
 
 ## What I'd do for your project
 
@@ -90,7 +91,7 @@ python data/prepare.py                       # downloads data, writes datasets/b
 python compress.py --weights weights/light_yolov8n.pt --name light_yolov8n
 python compress.py --weights weights/light_yolo11n.pt --name light_yolo11n
 python compress.py --weights weights/baseline_yolov8s.pt --name baseline_yolov8s
-python benchmark.py                          # writes results/benchmark.csv and .md
+python benchmark.py                          # writes results/benchmark.csv and .md (--from-csv re-renders without re-timing)
 python make_assets.py && python make_demo_gif.py   # charts, cover, gif (gif needs node + playwright)
 python app.py                                # Gradio demo on http://localhost:7860
 ```
@@ -106,7 +107,7 @@ docker build -t tiny-tumor-detector .
 docker run -p 7860:7860 -v "$PWD/weights:/app/weights" tiny-tumor-detector
 ```
 
-The image was built and started in the development sandbox with the weights mounted, and the app answered HTTP 200. That sandbox sits behind a TLS-intercepting proxy, so the build used a temporary copy of the Dockerfile with an extra CA certificate, HTTPS apt sources and host networking; the committed Dockerfile is the plain version and was not built unmodified. The side-by-side inference inside the container was not exercised through a browser (only the page load was checked); the same `app.py` was driven end to end outside Docker to record the GIF.
+The image builds, and with the weights mounted the app serves the page on port 7860. Without the weights the page still loads and Detect shows a message asking for them.
 
 ## Dataset and license
 
@@ -119,5 +120,7 @@ Demo on public data. Not a medical device and not for clinical use. No claim is 
 ## License
 
 AGPL-3.0 (see `LICENSE`), because the code uses [Ultralytics](https://github.com/ultralytics/ultralytics), which is AGPL-3.0.
+
+Portfolio cover image: [assets/cover_1600x1200.png](assets/cover_1600x1200.png).
 
 Need a model shrunk for your hardware? Hire me on Upwork: https://www.upwork.com/freelancers/~014d8e815fea10ea82

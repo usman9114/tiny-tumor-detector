@@ -6,6 +6,7 @@ Headline numbers are computed from results/benchmark.csv, never typed in.
 """
 import argparse
 import random
+import re
 import shutil
 from pathlib import Path
 
@@ -82,7 +83,7 @@ def main():
     ax.set_title("Accuracy vs CPU latency (bubble area = model size)", color=FG, loc="left")
     ax.grid(color="#21262d")
     ax.margins(0.18)
-    fig.text(0.01, 0.01, "Demo on public data. Not for clinical use. GPU: not measured.",
+    fig.text(0.01, 0.01, "Demo on public data. Not for clinical use. Latency: CPU only.",
              color=MUTED, fontsize=8)
     fig.tight_layout()
     fig.savefig(A / "tradeoff_chart.png")
@@ -94,7 +95,8 @@ def main():
     base_m, light_m = YOLO(a.base), YOLO(a.light, task="detect")
     rows = []
     for p in ex:
-        shutil.copy(p, A / "examples" / p.name)
+        safe = re.sub(r"[^A-Za-z0-9_-]+", "_", p.stem).strip("_") + p.suffix  # no spaces/parentheses
+        shutil.copy(p, A / "examples" / safe)
         img = cv2.imread(str(p))
         rows.append([draw_gt(img, p.stem), predict(base_m, p, a.imgsz, a.conf),
                      predict(light_m, p, a.imgsz, a.conf)])

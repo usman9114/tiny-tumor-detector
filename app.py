@@ -21,6 +21,10 @@ DISCLAIMER = "Demo on public data. Not a medical device and not for clinical use
 _models = {}
 
 
+def missing_weights():
+    return [p for p in (BASE, LIGHT) if not Path(p).exists()]
+
+
 def get(path):
     if path not in _models:
         _models[path] = YOLO(path, task="detect")
@@ -35,6 +39,11 @@ def run(path, img, conf):
 
 
 def compare(img, conf):
+    gone = missing_weights()
+    if gone:
+        raise gr.Error("Model weights not found: " + ", ".join(Path(p).name for p in gone)
+                       + ". Put them in the weights/ folder (Docker: mount it with "
+                       "-v \"$PWD/weights:/app/weights\"). See the README, section Run it.")
     if img is None:
         return None, "", None, ""
     img = np.asarray(img)[:, :, ::-1]  # RGB -> BGR for ultralytics
@@ -64,4 +73,8 @@ with gr.Blocks(title="Tiny tumor detector") as demo:
     btn.click(compare, [inp, conf], [o1, t1, o2, t2])
 
 if __name__ == "__main__":
+    if missing_weights():
+        print("WARNING: weights not found: " + ", ".join(missing_weights())
+              + "\nThe page will load, but Detect will show an error until the weights are in place "
+              "(Docker: -v \"$PWD/weights:/app/weights\").", flush=True)
     demo.launch(server_name="0.0.0.0", server_port=int(os.environ.get("PORT", 7860)))

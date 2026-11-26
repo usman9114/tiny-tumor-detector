@@ -7,13 +7,16 @@ Recall   : recall of the tumour class at the confidence that maximises F1.
 Latency  : forward pass only (no pre/post-processing), batch 1, fixed thread
            count, median over N timed runs after warm-up. Variants are timed
            interleaved over several rounds so background load hits all alike.
-GPU      : not measured (no GPU available here); the column says so.
+GPU      : a GPU latency column is added only when a CUDA GPU is available; otherwise
+           the column is omitted and the table footnote says all latency is CPU only.
+--from-csv re-renders benchmark.md/csv from the existing CSV without re-timing.
 Peak RAM : max RSS of a fresh process that loads the model and runs 20 inferences.
 """
 import argparse
 import csv
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -70,6 +73,46 @@ def load_runner(path: Path, imgsz: int):
     return lambda: s.run(None, {name: x})
 
 
+def cuda_available():
+    try:
+        import torch
+        return torch.cuda.is_available()
+    except Exception:
+        return False
+
+
+def gpu_latency(path: Path, imgsz, runs=100):
+    """Median forward-pass ms on CUDA (batch 1). Only called when a GPU exists."""
+    x = np.random.default_rng(0).random((1, 3, imgsz, imgsz), dtype=np.float32)
+    if path.suffix == ".pt":
+        import torch
+        from ultralytics import YOLO
+        net = YOLO(str(path)).model.float().fuse().eval().cuda()
+        t = torch.from_numpy(x).cuda()
+
+        def run():
+            with torch.inference_mode():
+                net(t)
+            torch.cuda.synchronize()
+    else:
+        import onnxruntime as ort
+        if "CUDAExecutionProvider" not in ort.get_available_providers():
+            return None
+        s = ort.InferenceSession(str(path), providers=["CUDAExecutionProvider"])
+        name = s.get_inputs()[0].name
+
+        def run():
+            s.run(None, {name: x})
+    for _ in range(10):
+        run()
+    ts = []
+    for _ in range(runs):
+        t0 = time.perf_counter()
+        run()
+        ts.append((time.perf_counter() - t0) * 1000)
+    return float(np.median(ts))
+
+
 def worker_ram(path, imgsz):
     run = load_runner(Path(path), imgsz)
     for _ in range(20):
@@ -112,7 +155,11 @@ def main():
     ap.add_argument("--runs", type=int, default=30)
     ap.add_argument("--rounds", type=int, default=5)
     ap.add_argument("--ram-worker")
+    ap.add_argument("--from-csv", action="store_true",
+                    help="re-render benchmark.md/csv from the existing CSV (no timing)")
     a = ap.parse_args()
+    if a.from_csv:
+        return from_csv()
     if a.ram_worker:
         return worker_ram(a.ram_worker, a.imgsz)
 
@@ -122,6 +169,7 @@ def main():
     print("load average at start:", load)
     cpu = next(l.split(":")[1].strip() for l in open("/proc/cpuinfo") if l.startswith("model name"))
 
+    use_gpu = cuda_available()
     vs = variants()
     rows, runners, times = [], {}, {}
     for label, path, src in vs:
@@ -145,6 +193,7 @@ def main():
             stats_cache[src] = model_stats(W / f"{src}.pt", a.imgsz)
         params, gflops, size_fp32 = stats_cache[src]
         m50, m5095, rec = accuracy(path, a.imgsz)
+        g = gpu_latency(path, a.imgsz) if use_gpu else None
         t = np.array(times[label])
         rows.append({
             "model": label, "params_M": round(params, 2),
@@ -153,27 +202,76 @@ def main():
             "tumour_recall": round(rec, 4),
             "cpu_latency_ms_median": round(float(np.median(t)), 2),
             "cpu_latency_ms_p95": round(float(np.percentile(t, 95)), 2),
-            "gpu_latency_ms": "not measured (no GPU available)",
             "peak_ram_MB": round(peak_ram(path, a.imgsz), 0),
         })
-    res = ROOT / "results"
-    with open(res / "benchmark.csv", "w", newline="") as f:
-        w = csv.DictWriter(f, fieldnames=list(rows[0]))
-        w.writeheader()
-        w.writerows(rows)
-    hdr = ["Model", "Params (M)", "Size (MB)", "GFLOPs", "mAP@50", "mAP@50-95", "Tumour recall",
-           "CPU ms (median)", "GPU ms", "Peak RAM (MB)"]
-    lines = ["| " + " | ".join(hdr) + " |", "|" + "---|" * len(hdr)]
-    for r in rows:
-        lines.append(f"| {r['model']} | {r['params_M']} | {r['size_MB']} | {r['GFLOPs']} | "
-                     f"{r['mAP50']:.3f} | {r['mAP50_95']:.3f} | {r['tumour_recall']:.3f} | "
-                     f"{r['cpu_latency_ms_median']} | not measured | {int(r['peak_ram_MB'])} |")
+        if use_gpu:
+            rows[-1]["gpu_latency_ms"] = round(g, 2) if g is not None else ""
     note = (f"\nTest split: {len(list((ROOT / 'datasets/brain-tumor/images/test').glob('*.jpg')))} images, "
             f"imgsz {a.imgsz}. CPU: {cpu}, {THREADS} threads, batch 1, forward pass only, "
             f"median of {a.runs * a.rounds} runs (interleaved, 10 warm-up). "
-            f"Load average at start: {load[0]:.2f}. GPU latency: not measured (no GPU available).\n")
-    (res / "benchmark.md").write_text("\n".join(lines) + "\n" + note)
-    print("\n".join(lines) + note)
+            f"Load average at start: {load[0]:.2f}.")
+    write_outputs(rows, note, gpu=use_gpu)
+
+
+NO_GPU_FOOTNOTE = "GPU not used: all latency numbers are CPU only (no GPU was available)."
+
+
+def fmt_row(r, gpu):
+    """Same decimals per column everywhere: params/GFLOPs/size/ms 2, mAP/recall 3, RAM integer."""
+    cells = [r["model"], f"{float(r['params_M']):.2f}", f"{float(r['size_MB']):.2f}",
+             f"{float(r['GFLOPs']):.2f}", f"{float(r['mAP50']):.3f}", f"{float(r['mAP50_95']):.3f}",
+             f"{float(r['tumour_recall']):.3f}", f"{float(r['cpu_latency_ms_median']):.2f}"]
+    if gpu:
+        g = r.get("gpu_latency_ms")
+        cells.append("n/a" if g in (None, "") else f"{float(g):.2f}")
+    cells.append(f"{int(round(float(r['peak_ram_MB'])))}")
+    return cells
+
+
+def write_outputs(rows, note, gpu=False):
+    res = ROOT / "results"
+    cols = ["model", "params_M", "size_MB", "GFLOPs", "mAP50", "mAP50_95", "tumour_recall",
+            "cpu_latency_ms_median", "cpu_latency_ms_p95"] + (["gpu_latency_ms"] if gpu else []) + ["peak_ram_MB"]
+    two = {"params_M", "size_MB", "GFLOPs", "cpu_latency_ms_median", "cpu_latency_ms_p95", "gpu_latency_ms"}
+    with open(res / "benchmark.csv", "w", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(cols)
+        for r in rows:
+            out = []
+            for c in cols:
+                v = r.get(c)
+                if c in two and v not in (None, ""):
+                    v = f"{float(v):.2f}"
+                elif c in ("mAP50", "mAP50_95", "tumour_recall"):
+                    v = f"{float(v):.4f}"
+                elif c == "peak_ram_MB":
+                    v = int(round(float(v)))
+                out.append(v)
+            w.writerow(out)
+    hdr = ["Model", "Params (M)", "Size (MB)", "GFLOPs", "mAP@50", "mAP@50-95", "Tumour recall",
+           "CPU ms (median)"] + (["GPU ms"] if gpu else []) + ["Peak RAM (MB)"]
+    lines = ["| " + " | ".join(hdr) + " |", "|" + "---|" * len(hdr)]
+    lines += ["| " + " | ".join(fmt_row(r, gpu)) + " |" for r in rows]
+    foot = "" if gpu else "\n" + NO_GPU_FOOTNOTE + "\n\n"
+    text = "\n".join(lines) + "\n" + foot + note.rstrip() + "\n"
+    (res / "benchmark.md").write_text(text)
+    print(text)
+
+
+def from_csv():
+    """Re-render results/benchmark.{csv,md} from the existing CSV, without re-timing."""
+    res = ROOT / "results"
+    with open(res / "benchmark.csv", newline="") as f:
+        rows = list(csv.DictReader(f))
+    gpu = "gpu_latency_ms" in rows[0] and any(
+        re.match(r"^[0-9.]+$", r["gpu_latency_ms"] or "") for r in rows)
+    md = (res / "benchmark.md").read_text().split("\n")
+    note = next((l for l in md if l.startswith("Test split:")), "")
+    note = re.sub(r"\s*GPU latency: [^.]*\.[^ ]*$", "", note).strip()
+    if not gpu:
+        for r in rows:
+            r.pop("gpu_latency_ms", None)
+    write_outputs(rows, note, gpu=gpu)
 
 
 if __name__ == "__main__":

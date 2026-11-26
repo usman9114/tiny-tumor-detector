@@ -13,4 +13,4 @@ Demo on public data. Heavy YOLO detectors are hard to run on CPU-only hardware. 
 
 **Repo:** https://github.com/usman9114/tiny-tumor-detector
 
-Numbers come from `results/benchmark.csv` (CPU latency: 4 threads, batch 1, forward pass only; GPU not measured).
+Numbers come from `results/benchmark.csv` (CPU latency: 4 threads, batch 1, forward pass only; no GPU used, all latency is CPU only).
