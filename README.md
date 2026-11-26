@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/banner.webp" alt="tiny-tumor-detector banner (illustration; real predictions are in assets/before_after.png)" width="100%"></p>
+
 # tiny-tumor-detector
 
 **YOLOv8s tumour detector shrunk to a YOLOv8n INT8 model: 12.5x smaller (44.55 MB -> 3.57 MB), 4.5x faster on CPU (46.29 ms -> 10.35 ms), mAP@50 0.988 -> 0.973 (-1.4 points).** All numbers are measured in this repo (`results/benchmark.csv`).
